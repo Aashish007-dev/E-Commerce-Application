@@ -6,6 +6,7 @@ import { ShopContext } from "../context/ShopContext";
 import { toast } from "react-toastify";
 import axios from "axios";
 
+
 const PlaceOrder = () => {
   const [method, setMethod] = useState("cod");
   const [formData, setFromData] = useState({
@@ -20,6 +21,38 @@ const PlaceOrder = () => {
     phone: "",
   });
   const { navigate, backendUrl, token, cartItems, setCartItems, getCartAmount, delivery_fee, products } = useContext(ShopContext);
+
+  const initPay = (order) => {
+    const options = {
+      key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+      amount: order.amount,
+      currency: order.currency,
+      name: "Order Payment",
+      description: "Order Payment",
+      order_id: order.id,
+      receipt: order.receipt,
+      handler: async (response) => {
+        console.log(response);
+        try {
+          const {data} = await axios.post(backendUrl + '/api/order/verifyRazorpay', response, {headers: {token}})
+          if(data.success){
+            navigate('/orders')
+            setCartItems({})
+            
+          }
+        } catch (error) {
+          console.log(error);
+          toast.error(error.message)
+        }
+        
+      }
+     
+    }
+
+    const rzp = new window.Razorpay(options);
+    rzp.open();
+
+  }
 
   const onChangeHandler = (e) => {
     const name = e.target.name;
@@ -68,10 +101,21 @@ const PlaceOrder = () => {
           case 'stripe':
               const responseStripe = await axios.post(backendUrl + '/api/order/stripe', orderData, {headers: {token}})
               if(responseStripe.data.success){
+                
                 const {session_url} = responseStripe.data;
                 window.location.replace(session_url)
+                navigate('/orders')
               } else{
                 toast.error(responseStripe.data.message)
+              }
+            break;
+
+          case 'razorpay':
+              const responseRazorpay = await axios.post(backendUrl + '/api/order/razorpay', orderData, {headers: {token}})
+              if(responseRazorpay.data.success){
+                initPay(responseRazorpay.data.order)
+              } else{
+                toast.error(responseRazorpay.data.message)
               }
             break;
 
